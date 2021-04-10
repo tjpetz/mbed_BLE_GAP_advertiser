@@ -26,12 +26,8 @@ using namespace std::literals::chrono_literals;
 
 static mbed::DigitalOut led1(LED1, 0);
 
-USBSerial serial(false);
-
 // Redirect the console to the USBSerial port
-mbed::FileHandle *mbed::mbed_override_console(int fd) {
-  return &serial;
-}
+REDIRECT_STDOUT_TO(Serial);
 
 // Advertiser
 
