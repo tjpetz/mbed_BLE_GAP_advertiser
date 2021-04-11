@@ -14,6 +14,16 @@
  * limitations under the License.
  */
 
+ /**
+  * Updating to support advertising on both legacy and extended (using coded phy). 
+  */
+
+/**
+ * TJP: Contrary to the documentation, it does not appear you can set 2 advertising sets
+ * right after each other.  Rather you need to do this via dispatch, adding only
+ * 1 advertising set at at time.
+ */
+ 
 #include <mbed.h>
 #include <events/mbed_events.h>
 #include "ble/BLE.h"
@@ -33,15 +43,22 @@ REDIRECT_STDOUT_TO(Serial);
 
 static const ble::AdvertisingParameters advertising_params(
     ble::advertising_type_t::CONNECTABLE_UNDIRECTED,
-    ble::adv_interval_t(ble::millisecond_t(25)), /* this could also be expressed as ble::adv_interval_t(40) */
-    ble::adv_interval_t(ble::millisecond_t(50)) /* this could also be expressed as ble::adv_interval_t(80) */
+    ble::adv_interval_t(ble::millisecond_t(80)), /* this could also be expressed as ble::adv_interval_t(40) */
+    ble::adv_interval_t(ble::millisecond_t(160)) /* this could also be expressed as ble::adv_interval_t(80) */
+);
+
+static const ble::AdvertisingParameters advertising_params2(
+    ble::advertising_type_t::CONNECTABLE_UNDIRECTED,
+    ble::adv_interval_t(ble::millisecond_t(90)), /* this could also be expressed as ble::adv_interval_t(40) */
+    ble::adv_interval_t(ble::millisecond_t(180)) /* this could also be expressed as ble::adv_interval_t(80) */
 );
 
 /* if the controller support it we can advertise multiple sets */
 static const ble::AdvertisingParameters extended_advertising_params(
     ble::advertising_type_t::NON_CONNECTABLE_UNDIRECTED,
     ble::adv_interval_t(600),
-    ble::adv_interval_t(800)
+    ble::adv_interval_t(800),
+    false
 );
 
 static const std::chrono::milliseconds advertising_duration = 10000ms;
@@ -157,40 +174,96 @@ private:
     void advertise()
     {
         ble_error_t error;
+
+        printf("Max advertising sets = %d\n", _gap.getMaxAdvertisingSetNumber());
         
-        error = _gap.setAdvertisingParameters(ble::LEGACY_ADVERTISING_HANDLE, advertising_params);
-        if (error) {
-            print_error(error, "Gap::setAdvertisingParameters() failed");
-            return;
-        }
+        // error = _gap.setAdvertisingParameters(ble::LEGACY_ADVERTISING_HANDLE, 
+        //   advertising_params
+        //   );
+        // if (error) {
+        //     print_error(error, "Gap::setAdvertisingParameters() failed");
+        //     return;
+        // }
+
+        // // Add the TX power to the header.
+        // error = _gap.setAdvertisingParameters(ble::LEGACY_ADVERTISING_HANDLE,
+        //   ble::AdvertisingParameters()
+        //     .setOwnAddressType(ble::own_address_type_t::PUBLIC)            
+        //     .setTxPower(4)
+        //     .includeTxPowerInHeader(true));
+        // if (error) {
+        //   print_error(error, "Gap::setAdvertisingParamters() update failed");
+        // }
 
         /* to create a payload we'll use a helper class that builds a valid payload */
         /* AdvertisingDataSimpleBuilder is a wrapper over AdvertisingDataBuilder that allocated the buffer for us */
         ble::AdvertisingDataSimpleBuilder<ble::LEGACY_ADVERTISING_MAX_SIZE> data_builder;
 
-        /* builder methods can be chained together as they return the builder object */
-        data_builder.setFlags().setName("Legacy Set");
+        // /* builder methods can be chained together as they return the builder object */
+        // data_builder.setFlags().setName("Legacy Set").setTxPowerAdvertised(4);
 
-        /* Set payload for the set */
-        error = _gap.setAdvertisingPayload(ble::LEGACY_ADVERTISING_HANDLE, data_builder.getAdvertisingData());
-        if (error) {
-            print_error(error, "Gap::setAdvertisingPayload() failed");
-            return;
-        }
+        // /* Set payload for the set */
+        // error = _gap.setAdvertisingPayload(ble::LEGACY_ADVERTISING_HANDLE, data_builder.getAdvertisingData());
+        // if (error) {
+        //     print_error(error, "Gap::setAdvertisingPayload() failed");
+        //     return;
+        // }
 
-        // /* Start advertising the set */
+        /* Start advertising the set */
         // error = _gap.startAdvertising(ble::LEGACY_ADVERTISING_HANDLE);
         // if (error) {
         //     print_error(error, "Gap::startAdvertising() failed");
         //     return;
         // }
 
-        // snprintf(buff, sizeof(buff),
+        // printf(
         //     "\r\nAdvertising started (type: 0x%x, interval: [%d : %d]ms)\r\n",
         //     advertising_params.getType(),
         //     advertising_params.getMinPrimaryInterval().valueInMs(),
         //     advertising_params.getMaxPrimaryInterval().valueInMs()
-        // ); Serial.print(buff);
+        // );
+
+        // Setup a primary advertising set.
+        // error = _gap.createAdvertisingSet(&_primary_adv_handle, advertising_params);
+        // if (!error) {
+        //   error = _gap.setAdvertisingParameters(
+        //     _primary_adv_handle,
+        //     ble::AdvertisingParameters()
+        //       .setType(ble::advertising_type_t::CONNECTABLE_UNDIRECTED, true)
+        //       .setOwnAddressType(ble::own_address_type_t::PUBLIC)            
+        //       .setTxPower(4)
+        //       .includeTxPowerInHeader(true)
+        //       );
+        //   if (!error) {
+        //     data_builder.setName("Primary Set").setTxPowerAdvertised(4);
+
+        //     error = _gap.setAdvertisingPayload(_primary_adv_handle, data_builder.getAdvertisingData());
+        //     if (!error) {
+        //       error = _gap.startAdvertising(_primary_adv_handle);
+        //       if (!error) {
+        //         printf(
+        //             "\r\nAdvertising started (type: 0x%x, handle: %d, interval: [%d : %d]ms)\r\n",
+        //             advertising_params.getType(),
+        //             _primary_adv_handle,
+        //             advertising_params.getMinPrimaryInterval().valueInMs(),
+        //             advertising_params.getMaxPrimaryInterval().valueInMs()
+        //         );
+        //       } else {
+        //         print_error(error, "Advertising the primary Advertising Set");
+        //       }
+
+        //     } else {
+        //       print_error(error, "Setting primary Advertising Payload");
+        //     }
+        //   } else {
+        //     print_error(error, "Setting Advertising Parameters for the primary set");
+        //   }
+                  
+        // } else {
+        //   print_error(error, "Creating primary advertising set");
+        // }
+
+
 
 #if BLE_FEATURE_EXTENDED_ADVERTISING
         /* if we support extended advertising we'll also additionally advertise another set at the same time */
@@ -214,9 +287,11 @@ private:
               _extended_adv_handle,
               ble::AdvertisingParameters()
                 .setType(ble::advertising_type_t::NON_CONNECTABLE_UNDIRECTED, false)
+                // .setPhy(ble::phy_t::LE_1M, ble::phy_t::LE_1M)
                 .setPhy(ble::phy_t::LE_CODED, ble::phy_t::LE_CODED)
                 .setTxPower(8)
                 .includeTxPowerInHeader(true)
+                .setScanRequestNotification(true)
             );
 
             if (error) {
@@ -224,7 +299,7 @@ private:
             }            
 
             /* we can reuse the builder, we just replace the name */
-            data_builder.setName("Extended Set");
+            data_builder.setName("Extended Set").setTxPowerAdvertised(8);
 
             /* Set payload for the set */
             error = _gap.setAdvertisingPayload(_extended_adv_handle, data_builder.getAdvertisingData());
@@ -249,8 +324,59 @@ private:
         }
 #endif // BLE_FEATURE_EXTENDED_ADVERTISING
 
+      // _ble.signalEventsToProcess();
+      // Add2ndAdvertisingSet();
+      event_queue.call_in(3000ms, this, &GapDemo::Add2ndAdvertisingSet);
+
     }
 
+    void Add2ndAdvertisingSet() 
+    {
+      ble_error_t error;
+      ble::AdvertisingDataSimpleBuilder<ble::LEGACY_ADVERTISING_MAX_SIZE> data_builder;
+
+      // Setup an additional advertising set.
+      error = _gap.createAdvertisingSet(&_second_adv_handle, advertising_params2);
+      if (!error) {
+        error = _gap.setAdvertisingParameters(
+          _second_adv_handle,
+          ble::AdvertisingParameters()
+            .setType(ble::advertising_type_t::NON_CONNECTABLE_UNDIRECTED, true)
+            .setOwnAddressType(ble::own_address_type_t::PUBLIC)            
+            .setTxPower(6)
+            .includeTxPowerInHeader(true)
+            .setScanRequestNotification(true)
+            );
+        if (!error) {
+          data_builder.setName("2nd Set").setTxPowerAdvertised(6);
+
+          error = _gap.setAdvertisingPayload(_second_adv_handle, data_builder.getAdvertisingData());
+          if (!error) {
+            error = _gap.startAdvertising(_second_adv_handle);
+            if (!error) {
+              printf(
+                  "\r\nAdvertising started (type: 0x%x, handle: %d, interval: [%d : %d]ms)\r\n",
+                  advertising_params2.getType(),
+                  _second_adv_handle,
+                  advertising_params2.getMinPrimaryInterval().valueInMs(),
+                  advertising_params2.getMaxPrimaryInterval().valueInMs()
+              );
+            } else {
+              print_error(error, "Advertising the 2nd Advertising Set");
+            }
+
+          } else {
+            print_error(error, "Setting 2nd Advertising Payload");
+          }
+        } else {
+          print_error(error, "Setting Advertising Parameters for the 2nd set");
+        }
+                
+      } else {
+        print_error(error, "Creating second advertising set");
+      }
+
+    }    
 private:
     /* Gap::EventHandler */
 
@@ -259,6 +385,11 @@ private:
       printf("Scan request received from: ");
       print_address(event.getPeerAddress());
     }    
+
+    void onAdvertisingStart(const ble::AdvertisingStartEvent &advHandle) override
+    {
+      printf("Advertising started on handle: %d\n", advHandle);
+    }
 
     void onAdvertisingEnd(const ble::AdvertisingEndEvent &event) override
     {
@@ -366,6 +497,8 @@ private:
     BLE &_ble;
     ble::Gap &_gap;
     events::EventQueue &_event_queue;
+    ble::advertising_handle_t _primary_adv_handle = ble::INVALID_ADVERTISING_HANDLE;
+    ble::advertising_handle_t _second_adv_handle = ble::INVALID_ADVERTISING_HANDLE;
 
 #if BLE_FEATURE_EXTENDED_ADVERTISING
     ble::advertising_handle_t _extended_adv_handle = ble::INVALID_ADVERTISING_HANDLE;
@@ -382,7 +515,7 @@ void setup()
 {
     BLE &ble = BLE::Instance();
 
-    delay(5000);
+    delay(7000);
     
     /* this will inform us off all events so we can schedule their handling
      * using our event queue */
